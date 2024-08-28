@@ -2,14 +2,15 @@ import streamlit as st
 from PIL import Image
 import rawpy
 import io
-import zipfile
+import zipstream  # Import zipstream for streaming zip creation
 
+# Function to convert NEF to JPG
 def convert_nef_to_jpg(nef_file):
     # Open the NEF file using rawpy
     with rawpy.imread(nef_file) as raw:
         # Convert to RGB
         rgb_image = raw.postprocess()
-    
+
     # Convert RGB image to PIL image
     pil_image = Image.fromarray(rgb_image)
     return pil_image
@@ -60,25 +61,27 @@ if st.session_state.uploaded_files:
 
         else:
             # Multiple files conversion
-            zip_buffer = io.BytesIO()
+            z = zipstream.ZipFile(mode='w', compression=zipstream.ZIP_DEFLATED)
 
-            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-                for idx, nef_file in enumerate(st.session_state.uploaded_files):
-                    jpg_image = convert_nef_to_jpg(nef_file)
+            for idx, nef_file in enumerate(st.session_state.uploaded_files):
+                jpg_image = convert_nef_to_jpg(nef_file)
 
-                    # Save the converted image to a BytesIO buffer
-                    img_buffer = io.BytesIO()
-                    jpg_image.save(img_buffer, format="JPEG", quality=100)
-                    byte_im = img_buffer.getvalue()
+                # Save the converted image to a BytesIO buffer
+                img_buffer = io.BytesIO()
+                jpg_image.save(img_buffer, format="JPEG", quality=100)
+                byte_im = img_buffer.getvalue()
 
-                    # Add each image to the zip file
-                    zip_file.writestr(f"{nef_file.name.split('.')[0]}.jpg", byte_im)
+                # Add each image to the zip file stream
+                z.write_iter(f"{nef_file.name.split('.')[0]}.jpg", io.BytesIO(byte_im))
 
-                    # Update progress bar
-                    progress_percentage = int(((idx + 1) / total_files) * 100)
-                    progress_bar.progress(progress_percentage)
+                # Update progress bar
+                progress_percentage = int(((idx + 1) / total_files) * 100)
+                progress_bar.progress(progress_percentage)
 
             # Move the cursor of the BytesIO object to the beginning
+            zip_buffer = io.BytesIO()
+            for chunk in z:
+                zip_buffer.write(chunk)
             zip_buffer.seek(0)
 
             # Display download button for the zip file containing all converted images
