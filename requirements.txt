@@ -1,1 +1,4 @@
 rawpy
+PIL
+io
+zipfile
